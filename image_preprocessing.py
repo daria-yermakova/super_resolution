@@ -9,6 +9,7 @@ import pathlib
 from pathlib import Path
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 from skimage import io
 from tqdm import tqdm
@@ -28,11 +29,12 @@ def patchify(input_dir, output_dir, patch_size: int = 512):
         for row in range(0, image_with_border.shape[0], patch_size):
             for column in range(0, image_with_border.shape[1], patch_size):
                 out_path = output_dir / f"{image_path.stem}_patch_{row}_{column}.jpg"
-                if not out_path.exists():
-                    cv2.imwrite(
-                        out_path.as_posix(),
-                        image_with_border[row:row + patch_size, column:column + patch_size, :]
-                    )
+                write_image = image_with_border[row:row + patch_size, column:column + patch_size, :]
+                cv2.imwrite(
+                    out_path.as_posix(),
+                    np.flip(write_image, 2),
+                    [int(cv2.IMWRITE_JPEG_QUALITY), 100]
+                )
 
 
 # %%
