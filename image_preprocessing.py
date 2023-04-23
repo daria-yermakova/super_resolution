@@ -19,10 +19,20 @@ def patchify(input_dir, output_dir, patch_size: int = 512):
     output_dir.mkdir(exist_ok=True, parents=True)
     for image_path in tqdm(input_images, desc="patchify"):
         image = io.imread(image_path)
-        for row in range(0, image.shape[0], patch_size):
-            for column in range(0, image.shape[1], patch_size):
+
+        # add black padding
+        updated_size = (((image.shape[0] // patch_size) + 1) * patch_size - image.shape[0]) / 2
+        top, bottom, left, right = [int(updated_size)] * 4
+        image_with_border = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+
+        for row in range(0, image_with_border.shape[0], patch_size):
+            for column in range(0, image_with_border.shape[1], patch_size):
                 out_path = output_dir / f"{image_path.stem}_patch_{row}_{column}.jpg"
-                success = cv2.imwrite(out_path.as_posix(), image[row:row + patch_size, column:column + patch_size, :])
+                if not out_path.exists():
+                    cv2.imwrite(
+                        out_path.as_posix(),
+                        image_with_border[row:row + patch_size, column:column + patch_size, :]
+                    )
 
 
 # %%
