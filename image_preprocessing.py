@@ -22,7 +22,7 @@ def patchify(input_dir, output_dir, patch_size: int = 512):
         for row in range(0, image.shape[0], patch_size):
             for column in range(0, image.shape[1], patch_size):
                 out_path = output_dir / f"{image_path.stem}_patch_{row}_{column}.jpg"
-                success = cv2.imwrite(out_path.as_posix(), image[row:row + 30, column:column + 30, :])
+                success = cv2.imwrite(out_path.as_posix(), image[row:row + patch_size, column:column + patch_size, :])
 
 
 # %%
