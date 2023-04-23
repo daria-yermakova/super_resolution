@@ -63,8 +63,8 @@ def preprocess(input_dir, output_dir, stride, patch_size):
         - patch_size
     """
     input_dir = Path(input_dir)
-    output_dir = Path(output_dir)
-    patches_dir = input_dir.parent / "patches"
+    patches_dir = Path(output_dir).parent / f"patches_{patch_size}"
+    output_dir = Path(output_dir) / f"ps{patch_size}_str{stride}"
     [path.mkdir(parents=True, exist_ok=True) for path in [patches_dir, output_dir]]
 
     patchify(input_dir, patches_dir, patch_size=patch_size)
@@ -77,7 +77,7 @@ def preprocess(input_dir, output_dir, stride, patch_size):
 def main():
     preprocess(
         input_dir="./test",
-        output_dir="./cropped",
+        output_dir="./data/cropped",
         stride=4,
         patch_size=512
     )
