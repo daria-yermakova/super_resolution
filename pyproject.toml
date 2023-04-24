@@ -10,6 +10,9 @@ packages = [{include = "super_resolution"}]
 python = "^3.11"
 scikit-image = "^0.20.0"
 opencv-python = "^4.7.0.72"
+torch = "^2.0.0"
+matplotlib = "^3.7.1"
+ipython = "^8.12.0"
 
 
 [build-system]

@@ -32,7 +32,7 @@ def patchify(input_dir, output_dir, patch_size: int = 512):
                 write_image = image_with_border[row:row + patch_size, column:column + patch_size, :]
                 cv2.imwrite(
                     out_path.as_posix(),
-                    np.flip(write_image, 2),
+                    np.flip(write_image, 2),  # (rgb) to (bgr)
                     [int(cv2.IMWRITE_JPEG_QUALITY), 100]
                 )
 
