@@ -5,87 +5,70 @@ from skimage.metrics import mean_squared_error, structural_similarity, peak_sign
 from skimage import io
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
-from image_preprocessing import get_cropped_path
-
-stride = 4
-patch_size = 512
-patches_dir = Path(f"data/patches_{patch_size}/")
-cropped_dir = Path(f"data/cropped/ps{patch_size}_str{stride}")  # todo inconsistent naming
-if not cropped_dir.exists() and not patches_dir.exists():
-    raise FileNotFoundError(
-        "Make sure you've preprocessed your imagery with this configuration:"
-        f"\n{stride = } \n{patch_size = }"
-    )
-
-test_patches = list(patches_dir.glob("*.jpg"))
-
-test_patch = test_patches[2]
-cropped_image_file = get_cropped_path(test_patch, cropped_dir, stride)
-assert cropped_image_file.exists()
-
-image = io.imread(test_patch)
-baseline_image = io.imread(cropped_image_file)
-
-# metrics
-mean_squared = mean_squared_error(image, baseline_image)
-# ssim = structural_similarity(image, baseline_image.squeeze())  # needs to be grayscale
-psnr = peak_signal_noise_ratio(image, baseline_image)
-
-plot = False
-if plot:
-    fig, ax = plt.subplots(2, 2, figsize=(10, 10))
-    ax[0, 0].imshow(image[:, :, 0], cmap='jet')
-    ax[0, 1].imshow(baseline_image[:, :, 0], cmap='jet')
-    ax[1, 0].imshow(image)
-    ax[1, 1].imshow(baseline_image)
-    fig.suptitle(f"{stride=} {patch_size=}\n MSE: {mean_squared:.2f}, PSNR {psnr:.2f}dB")
-    plt.show()
+from config import PATCHES_TEMPLATE, CROPPED_TEMPLATE, PATCH_SIZE, STRIDE
 
 
-class UNet(torch.nn.Module):
-    """Takes in patches of 128/512^2 RGB, returns 88^2"""
+class Data(torch.utils.data.Dataset):
+    def __init__(
+            self, data_dir: str, n_images: int, margin_size: int = 20
+    ):
+        self.ground_truth = []
+        self.input_images = []
+        ground_truth_dir = Path(data_dir) / PATCHES_TEMPLATE.format(PATCH_SIZE)
+        cropped_dir = Path(data_dir) / CROPPED_TEMPLATE.format(PATCH_SIZE, STRIDE)
 
-    def __init__(self, out_channels=2):
-        super().__init__()
+        if not cropped_dir.exists() and not ground_truth_dir.exists():
+            raise FileNotFoundError(
+                "Make sure you've preprocessed your imagery with this configuration:"
+                f"\n{STRIDE = } \n{PATCH_SIZE = }"
+            )
+        ground_truth_files = list(ground_truth_dir.glob("*.jpg"))
+        cropped_files = list(cropped_dir.glob("*.jpg"))
 
-        # Learnable
-        self.conv1A = torch.nn.Conv2d(3, 8, 3)
-        self.conv1B = torch.nn.Conv2d(8, 8, 3)
-        self.conv2A = torch.nn.Conv2d(8, 16, 3)
-        self.conv2B = torch.nn.Conv2d(16, 16, 3)
-        self.conv3A = torch.nn.Conv2d(16, 32, 3)
-        self.conv3B = torch.nn.Conv2d(32, 32, 3)
-        self.conv4A = torch.nn.Conv2d(32, 16, 3)
-        self.conv4B = torch.nn.Conv2d(16, 16, 3)
-        self.conv5A = torch.nn.Conv2d(16, 8, 3)
-        self.conv5B = torch.nn.Conv2d(8, 8, 3)
-        self.convfinal = torch.nn.Conv2d(8, out_channels, 1)
-        self.convtrans34 = torch.nn.ConvTranspose2d(32, 16, 2, stride=2)
-        self.convtrans45 = torch.nn.ConvTranspose2d(16, 8, 2, stride=2)
+        if not ground_truth_files or not cropped_files:
+            raise FileNotFoundError("Empty dirs")
 
-        # Convenience
-        self.relu = torch.nn.ReLU()
-        self.tanh = torch.nn.Tanh()
+        n_images = len(ground_truth_files) if n_images == -1 else n_images
 
-    def forward(self, x):
-        # Down, keeping layer outputs we'll need later.
-        l1 = self.relu(self.conv1B(self.relu(self.conv1A(x))))
-        l2 = self.relu(self.conv2B(self.relu(self.conv2A(self.pool(l1)))))
-        out = self.relu(self.conv3B(self.relu(self.conv3A(self.pool(l2)))))
+        for index in tqdm(range(n_images), desc="loading images"):
+            patch = np.array(io.imread(ground_truth_files[index]))
+            patch = patch.transpose(2, 0, 1) / 255
+            self.ground_truth.append(torch.tensor(patch, dtype=torch.float32))
 
-        # Up, now we overwritte out in each step.
-        out = torch.cat([self.convtrans34(out), l2[:, :, 4:-4, 4:-4]], dim=1)
-        out = self.relu(self.conv4B(self.relu(self.conv4A(out))))
-        out = torch.cat([self.convtrans45(out), l1[:, :, 16:-16, 16:-16]], dim=1)
-        out = self.relu(self.conv5B(self.relu(self.conv5A(out))))
+            cropped_image = np.array(io.imread(cropped_files[index]))
+            cropped_image = cropped_image[margin_size:-margin_size, margin_size:-margin_size]
+            cropped_image = cropped_image.transpose(2, 0, 1) / 255
+            self.input_images.append(torch.tensor(cropped_image, dtype=torch.float32))
 
-        # Finishing
-        out = self.convfinal(out)
+    def __getitem__(self, index):
+        return self.ground_truth[index], self.input_images[index]
 
-        return out
+    def __len__(self):
+        return len(self.input_images)
+
+    def data_train_test_split(self, test_size_percent: float = .2, shuffle: bool = True):
+        train_size = int(test_size_percent * len(self))
+        test_size = len(self) - train_size
+        x_train, x_test = torch.utils.data.random_split(self.input_images, [train_size, test_size])
+        y_train, y_test = torch.utils.data.random_split(self.ground_truth, [train_size, test_size])
+        return x_train, y_train, x_test, y_test
 
 
-test = torch.rand(128, 128)
-model = UNet().to("cpu")
-model(test)
+def compare_images(image_a, image_b):
+    """ could be the ground truth and the outputs of a UNet or a baseline"""
+    # metrics
+    mean_squared = mean_squared_error(image_a, image_b)
+    # ssim = structural_similarity(image, baseline_image.squeeze())  # needs to be grayscale
+    psnr = peak_signal_noise_ratio(image_a, image_b)
+
+    plot = False
+    if plot:
+        fig, ax = plt.subplots(2, 2, figsize=(10, 10))
+        ax[0, 0].imshow(image_a[:, :, 0], cmap='jet')
+        ax[0, 1].imshow(image_b[:, :, 0], cmap='jet')
+        ax[1, 0].imshow(image_a)
+        ax[1, 1].imshow(image_b)
+        fig.suptitle(f"{STRIDE=} {PATCH_SIZE=}\n MSE: {mean_squared:.2f}, PSNR {psnr:.2f}dB")
+        plt.show()
