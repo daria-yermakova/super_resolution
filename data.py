@@ -5,8 +5,9 @@ from skimage.metrics import mean_squared_error, structural_similarity, peak_sign
 from skimage import io
 import matplotlib.pyplot as plt
 import numpy as np
+from torch.utils.data import random_split
 from tqdm import tqdm
-
+import torch.nn.functional as F
 from config import PATCHES_TEMPLATE, CROPPED_TEMPLATE, PATCH_SIZE, STRIDE
 
 
@@ -40,19 +41,27 @@ class Data(torch.utils.data.Dataset):
             cropped_image = np.array(io.imread(cropped_files[index]))
             cropped_image = cropped_image[margin_size:-margin_size, margin_size:-margin_size]
             cropped_image = cropped_image.transpose(2, 0, 1) / 255
+            cropped_image = torch.tensor(cropped_image, dtype=torch.float32)
+            # todo make this dependent on the patch_size:
+            cropped_image = F.pad(cropped_image, (40, 40, 40, 40), mode='reflect')
             self.input_images.append(torch.tensor(cropped_image, dtype=torch.float32))
 
+        self.input_images = torch.stack(self.input_images)
+        self.ground_truth = torch.stack(self.ground_truth)
+
     def __getitem__(self, index):
-        return self.ground_truth[index], self.input_images[index]
+        return self.input_images[index], self.ground_truth[index]
 
     def __len__(self):
         return len(self.input_images)
 
     def data_train_test_split(self, test_size_percent: float = .2, shuffle: bool = True):
-        train_size = int(test_size_percent * len(self))
-        test_size = len(self) - train_size
-        x_train, x_test = torch.utils.data.random_split(self.input_images, [train_size, test_size])
-        y_train, y_test = torch.utils.data.random_split(self.ground_truth, [train_size, test_size])
+        """ not returning dataloaders"""
+        train_size = len(self) - int(test_size_percent * len(self))
+        random_indices = np.random.randint(0, len(self), len(self))
+        train_mask, test_mask = random_indices[:train_size], random_indices[train_size:]
+        x_train, y_train = self[train_mask]
+        x_test, y_test = self[test_mask]
         return x_train, y_train, x_test, y_test
 
 
