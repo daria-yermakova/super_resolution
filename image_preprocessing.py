@@ -8,6 +8,9 @@ preprocessing main:
 from pathlib import Path
 
 import cv2
+from loguru import logger
+
+import matplotlib.pyplot as plt
 import numpy as np
 from skimage import io
 from tqdm import tqdm
@@ -15,13 +18,15 @@ from tqdm import tqdm
 from config import PATCHES_TEMPLATE, CROPPED_TEMPLATE, BASELINE_TEMPLATE, STRIDE, PATCH_SIZE
 
 
-def patchify(input_dir, output_dir, patch_size: int = 512):
+def patchify(input_dir, output_dir, patch_size: int = 512, drop_empty: bool = True):
     input_images = input_dir.glob("*.jpg")
     output_dir.mkdir(exist_ok=True, parents=True)
+
+    log_empties = 0
     for image_path in tqdm(input_images, desc="patchify"):
         image = io.imread(image_path)
 
-        # add black padding
+        # add (0,0,0) padding
         updated_size = (((image.shape[0] // patch_size) + 1) * patch_size - image.shape[0]) / 2
         top, bottom, left, right = [int(updated_size)] * 4
         image_with_border = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
@@ -30,17 +35,23 @@ def patchify(input_dir, output_dir, patch_size: int = 512):
             for column in range(0, image_with_border.shape[1], patch_size):
                 out_path = output_dir / f"{image_path.stem}_patch_{row}_{column}.jpg"
                 write_image = image_with_border[row:row + patch_size, column:column + patch_size, :]
+                if drop_empty and np.unique(write_image).shape[0] == 1:
+                    log_empties += 1
+                    continue
                 cv2.imwrite(
                     out_path.as_posix(),
                     np.flip(write_image, 2),  # (rgb) to (bgr)
                     [int(cv2.IMWRITE_JPEG_QUALITY), 100]
                 )
+    if log_empties > 0:
+        logger.warning(f"Skipping n empty images: {log_empties}")
 
 
 # %%
 def crop_image(image: np.array, interpolation: bool, channels: int = None, stride: int = 4, ):
     """ either with linear interpolation (serves as a baseline)
-     or zero values inbetween strides (the training data later on)"""
+     or zero values inbetween strides (the training data later on)
+     """
     if image.ndim == 2:
         image = image[:, :, np.newaxis]
     if not channels:

@@ -10,10 +10,12 @@ from tqdm import tqdm
 import torch.nn.functional as F
 from config import PATCHES_TEMPLATE, CROPPED_TEMPLATE, PATCH_SIZE, STRIDE
 
+from loguru import logger
+
 
 class Data(torch.utils.data.Dataset):
     def __init__(
-            self, data_dir: str, n_images: int, margin_size: int = 20
+            self, data_dir: str, n_images: int,
     ):
         self.ground_truth = []
         self.input_images = []
@@ -25,8 +27,8 @@ class Data(torch.utils.data.Dataset):
                 "Make sure you've preprocessed your imagery with this configuration:"
                 f"\n{STRIDE = } \n{PATCH_SIZE = }"
             )
-        ground_truth_files = list(ground_truth_dir.glob("*.jpg"))
-        cropped_files = list(cropped_dir.glob("*.jpg"))
+        ground_truth_files = sorted(list(ground_truth_dir.glob("*.jpg")))  # dangerous wildcards
+        cropped_files = sorted(list(cropped_dir.glob("*.jpg")))
 
         if not ground_truth_files or not cropped_files:
             raise FileNotFoundError("Empty dirs")
@@ -39,11 +41,11 @@ class Data(torch.utils.data.Dataset):
             self.ground_truth.append(torch.tensor(patch, dtype=torch.float32))
 
             cropped_image = np.array(io.imread(cropped_files[index]))
-            cropped_image = cropped_image[margin_size:-margin_size, margin_size:-margin_size]
+            # cropped_image = cropped_image[margin_size:-margin_size, margin_size:-margin_size]
             cropped_image = cropped_image.transpose(2, 0, 1) / 255
             cropped_image = torch.tensor(cropped_image, dtype=torch.float32)
             # todo make this dependent on the patch_size:
-            cropped_image = F.pad(cropped_image, (40, 40, 40, 40), mode='reflect')
+            cropped_image = F.pad(cropped_image, (20, 20, 20, 20), mode='reflect')
             self.input_images.append(torch.tensor(cropped_image, dtype=torch.float32))
 
         self.input_images = torch.stack(self.input_images)
