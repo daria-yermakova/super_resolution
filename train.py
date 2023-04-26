@@ -2,7 +2,7 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 from torch.utils.data.sampler import SubsetRandomSampler
-from data import Data
+from data import Data, compare_images
 
 
 class UNet(torch.nn.Module):
@@ -112,7 +112,6 @@ epoch_losses = []
 test_losses = []
 image = data_set.input_images[3]
 
-
 for epoch in range(nr_epochs):
     print(f'Epoch {epoch}/{nr_epochs}', end='')
 
@@ -192,4 +191,7 @@ ax[0, 2].imshow(target_display[100:200, 100:200, 1])
 ax[1, 0].imshow(reconstruction[:, :, 1])
 ax[1, 1].imshow(input_display[:, :, 1])
 ax[1, 2].imshow(target_display[:, :, 1])
+plt.show()
+
+compare_images(reconstruction, target_display)
 plt.show()
