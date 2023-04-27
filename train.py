@@ -235,5 +235,6 @@ def main():
     fig = compare_images(reconstruction, target_image)
     plt.show()
 
+
 if __name__ == '__main__':
     main()
