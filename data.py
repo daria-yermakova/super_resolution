@@ -73,7 +73,7 @@ def compare_images(image_a, image_b):
     mean_squared = mean_squared_error(image_a, image_b)
     # ssim = structural_similarity(image, baseline_image.squeeze())  # needs to be grayscale
     psnr = peak_signal_noise_ratio(image_a, image_b)
-
+    logger.info(f"{mean_squared=}, {psnr=}")
     plot = False
     if plot:
         fig, ax = plt.subplots(2, 2, figsize=(10, 10))
@@ -82,4 +82,5 @@ def compare_images(image_a, image_b):
         ax[1, 0].imshow(image_a)
         ax[1, 1].imshow(image_b)
         fig.suptitle(f"{STRIDE=} {PATCH_SIZE=}\n MSE: {mean_squared:.2f}, PSNR {psnr:.2f}dB")
-        plt.show()
+
+    return fig
