@@ -19,10 +19,14 @@ from data import Data
 
 def PSNRLoss(batch_1, batch_2):
     """peak signal-to-noise ratio loss"""
-    mse = torch.nn.MSELoss()
-    mse_loss = mse(batch_1, batch_2)
-    psnr = 10 * torch.log10(1 / mse_loss)
-    return psnr
+    # mse = torch.nn.MSELoss()
+    # mse_loss = mse(batch_1, batch_2)
+    # psnr = 10 * torch.log10(1 / mse_loss)
+    # return psnr
+    mse = np.mean((batch_1 - batch_2) ** 2, axis=(1, 2, 3))
+    max_pixel = 1.0
+    psnr = 10 * np.log10((max_pixel ** 2) / mse)
+    return np.mean(psnr)
 
 
 LOSSES = dict(
@@ -73,6 +77,17 @@ class UNet(torch.nn.Module):
 
         return out
 
+
+def PSNRLoss(batch_1, batch_2):
+    """peak signal-to-noise ratio loss"""
+    # mse = torch.nn.MSELoss()
+    # mse_loss = mse(batch_1, batch_2)
+    # psnr = 10 * torch.log10(1 / mse_loss)
+    # return psnr
+    mse = np.mean((batch_1 - batch_2) ** 2, axis=(1,2,3))
+    max_pixel = 1.0
+    psnr = 10 * np.log10((max_pixel ** 2) / mse)
+    return np.mean(psnr)
 
 def main():
     # parser = argparse.ArgumentParser()
