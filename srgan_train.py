@@ -166,8 +166,6 @@ def main():
             f"Epoch {epoch}/{nr_epochs}\t Losses: \t" + " | ".join(
                 [f"{k}={v:06.3f}" for k, v in losses_df.loc[epoch].to_dict().items()])
         )
-
-        plt.show()
         if epoch % 5 == 4:
             logits = generator.relu(logits)
             prob = torch.nn.functional.tanh(logits)
