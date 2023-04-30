@@ -178,7 +178,7 @@ def main():
             ax[0].imshow(prob.cpu().numpy().squeeze().transpose(1, 2, 0))
             ax[0].set_title(f'Prediction, epoch:{len(epoch_losses) - 1}')
 
-            sns.relplot(losses_df, ax=ax[1])
+            sns.relplot(losses_df, ax=ax[1], kind="line")
             # ax[1].plot(np.linspace(0, len(epoch_losses), len(batch_losses)),
             #            batch_losses, lw=0.5)  # blue
             # ax[1].plot(np.arange(len(epoch_losses)) + 0.5, epoch_losses, lw=2)  # orange
