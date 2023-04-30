@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "super-resolution"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = ["Matthias Rötzer <matthias1roetzer@gmail.com>"]
 readme = "README.md"
@@ -17,6 +17,8 @@ scikit-learn = "^1.2.2"
 loguru = "^0.7.0"
 jupyter = "^1.0.0"
 google = "^3.0.0"
+torchvision = "^0.15.1"
+seaborn = "^0.12.2"
 
 
 [build-system]

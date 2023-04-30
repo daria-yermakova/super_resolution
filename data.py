@@ -1,4 +1,6 @@
+from datetime import datetime
 from pathlib import Path
+from typing import Union
 
 import torch
 from skimage.metrics import mean_squared_error, structural_similarity, peak_signal_noise_ratio
@@ -8,7 +10,7 @@ import numpy as np
 from torch.utils.data import random_split
 from tqdm import tqdm
 import torch.nn.functional as F
-from config import PATCHES_TEMPLATE, CROPPED_TEMPLATE, PATCH_SIZE, STRIDE
+from config import PATCHES_TEMPLATE, CROPPED_TEMPLATE, PATCH_SIZE, STRIDE, SAVE_DIR_TEMPLATE
 
 from loguru import logger
 
@@ -57,16 +59,8 @@ class Data(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.input_images)
 
-    def data_train_test_split(self, test_size_percent: float = .2, shuffle: bool = True):
-        """ not returning dataloaders"""
-        train_size = len(self) - int(test_size_percent * len(self))
-        random_indices = np.random.randint(0, len(self), len(self))
-        train_mask, test_mask = random_indices[:train_size], random_indices[train_size:]
-        x_train, y_train = self[train_mask]
-        x_test, y_test = self[test_mask]
-        return x_train, y_train, x_test, y_test
 
-
+# utils functions...
 def compare_images(image_a, image_b):
     """ could be the ground truth and the outputs of a UNet or a baseline"""
     # metrics
@@ -84,3 +78,18 @@ def compare_images(image_a, image_b):
         fig.suptitle(f"{STRIDE=} {PATCH_SIZE=}\n MSE: {mean_squared:.2f}, PSNR {psnr:.2f}dB")
 
     return fig
+
+
+def init_save_dir():
+    try:
+        # generate a random word
+        from wonderwords import RandomWord
+        r = RandomWord()
+        identifiers = [r.word(), r.word()]
+    except:
+        identifiers = ["model"]
+
+    now = datetime.now().strftime("%H%M%d%m")
+    save_dir = Path(SAVE_DIR_TEMPLATE.format(now, "_".join(identifiers)))
+    save_dir.mkdir(exist_ok=False, parents=True)
+    return save_dir
