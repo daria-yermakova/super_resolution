@@ -113,8 +113,8 @@ def main():
             input_batch = input_batch.to(device)
             target_batch = target_batch.to(device)
 
-            real_labels = torch.ones(batch_size, 1)
-            fake_labels = torch.zeros(batch_size, 1)
+            real_labels = torch.ones(batch_size, 1).to(device)
+            fake_labels = torch.zeros(batch_size, 1).to(device)
 
             discriminator_optimizer.zero_grad()
 
@@ -176,14 +176,7 @@ def main():
             ax[0].imshow(prob.cpu().numpy().squeeze().transpose(1, 2, 0))
             ax[0].set_title(f'Prediction, epoch:{len(epoch_losses) - 1}')
 
-            sns.relplot(losses_df, ax=ax[1], kind="line")
-            # ax[1].plot(np.linspace(0, len(epoch_losses), len(batch_losses)),
-            #            batch_losses, lw=0.5)  # blue
-            # ax[1].plot(np.arange(len(epoch_losses)) + 0.5, epoch_losses, lw=2)  # orange
-            # ax[1].plot(np.linspace(0, len(epoch_losses) - 0.5, len(val_losses)),
-            #            val_losses, lw=1)  # green
-            # ax[1].set_title('Batch loss, epoch loss (training) and test loss')
-            # ax[1].set_ylim(0, 1.1 * max(epoch_losses + val_losses))
+            sns.lineplot(losses_df, ax=ax[1], markers=True)
             plt.savefig(save_dir / f"loss_epoch{epoch}.jpg", dpi=300)
 
     torch.save(generator.state_dict(), save_dir / "model.pt")
