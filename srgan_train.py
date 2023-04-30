@@ -10,7 +10,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from data import Data, compare_images, init_save_dir
+from data import Data, init_save_dir
+from evaluate import compare_batches
 from srgan import UNet, VGG16Discriminator
 
 
@@ -69,8 +70,8 @@ def main():
         batch_size=batch_size * 2,
     )
 
-    lr = 0.0001
-    nr_epochs = 15
+    lr = 0.001
+    nr_epochs = 25
     n_filters = 8
 
     batch_losses = []
@@ -90,7 +91,7 @@ def main():
     # and thus the complexity of the images
     latent_space = 100
 
-    discriminator = VGG16Discriminator().to(device)
+    discriminator = VGG16Discriminator(pretrained=False).to(device)
     generator = UNet(n_filters=n_filters).to(device)
 
     # loss_function = LOSSES[choose_loss]
@@ -105,8 +106,9 @@ def main():
     image = data_set.input_images[3]  # for sample output during training
     losses_df = pd.DataFrame(
         index=range(nr_epochs),
-        columns=["d_real", "d_fake", "discr", "gen", "g_val"]
+        columns=["d_real", "d_fake", "discr", "gen", "gen_val", "ssim", "mse", "psnr"]
     )
+    # Training Begin
     for epoch in range(nr_epochs):
         # epoch_loss = 0.0
         for n_batch, (input_batch, target_batch) in enumerate(train_loader):
@@ -139,9 +141,9 @@ def main():
             generator_loss = content_outputs + adversarial_outputs
             generator_loss.backward()
             generator_optimizer.step()
+            losses_df.loc[epoch, "gen"] = generator_loss.item()
 
             # logging
-            losses_df.loc[epoch, "gen"] = generator_loss.item()
             '\t'.join([f"{k}={v:.3f}" for k, v in losses_df.loc[epoch].to_dict().items()])
             # epoch_loss += loss.item()
             batch_loss = losses_df.loc[epoch].mean()
@@ -161,7 +163,11 @@ def main():
                 loss = content_loss(logits_batch, val_target_batch)
                 val_loss += loss.item()
             val_losses.append(val_loss / len(validation_loader))
-            losses_df.loc[epoch, "g_val"] = val_loss
+            losses_df.loc[epoch, "gen_val"] = val_loss
+            losses_df.loc[epoch, ["ssim", "mse", "psnr"]] = compare_batches(
+                input_batch=torch.nn.functional.tanh(logits_batch),
+                target_batch=val_target_batch
+            )
         print(
             f"Epoch {epoch}/{nr_epochs}\t Losses: \t" + " | ".join(
                 [f"{k}={v:06.3f}" for k, v in losses_df.loc[epoch].to_dict().items()])
@@ -174,10 +180,15 @@ def main():
 
             ax[0].imshow(prob[0, 1].cpu().detach())
             ax[0].imshow(prob.cpu().numpy().squeeze().transpose(1, 2, 0))
-            ax[0].set_title(f'Prediction, epoch:{len(epoch_losses) - 1}')
+            ax[0].set_title(f'Prediction, epoch:{epoch}')
 
-            sns.lineplot(losses_df, ax=ax[1], markers=True)
+            sns.lineplot(
+                losses_df[["gen", "gen_val", "ssim", "mse", "psnr"]],
+                ax=ax[1],
+                markers=True
+            )
             plt.savefig(save_dir / f"loss_epoch{epoch}.jpg", dpi=300)
+    # End of training
 
     torch.save(generator.state_dict(), save_dir / "model.pt")
 

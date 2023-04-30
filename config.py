@@ -7,3 +7,4 @@ CROPPED_TEMPLATE = "./cropped/ps{}_str{}"
 BASELINE_TEMPLATE = "./baseline/ps{}_str{}"
 
 SAVE_DIR_TEMPLATE = "./runs/unet_{}_{}"
+

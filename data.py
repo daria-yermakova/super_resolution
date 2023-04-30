@@ -61,23 +61,6 @@ class Data(torch.utils.data.Dataset):
 
 
 # utils functions...
-def compare_images(image_a, image_b):
-    """ could be the ground truth and the outputs of a UNet or a baseline"""
-    # metrics
-    mean_squared = mean_squared_error(image_a, image_b)
-    # ssim = structural_similarity(image, baseline_image.squeeze())  # needs to be grayscale
-    psnr = peak_signal_noise_ratio(image_a, image_b)
-    logger.info(f"{mean_squared=}, {psnr=}")
-    plot = False
-    if plot:
-        fig, ax = plt.subplots(2, 2, figsize=(10, 10))
-        ax[0, 0].imshow(image_a[:, :, 0], cmap='jet')
-        ax[0, 1].imshow(image_b[:, :, 0], cmap='jet')
-        ax[1, 0].imshow(image_a)
-        ax[1, 1].imshow(image_b)
-        fig.suptitle(f"{STRIDE=} {PATCH_SIZE=}\n MSE: {mean_squared:.2f}, PSNR {psnr:.2f}dB")
-
-    return fig
 
 
 def init_save_dir():
@@ -86,7 +69,7 @@ def init_save_dir():
         from wonderwords import RandomWord
         r = RandomWord()
         identifiers = [r.word(), r.word()]
-    except:
+    except Exception:
         identifiers = ["model"]
 
     now = datetime.now().strftime("%H%M%d%m")

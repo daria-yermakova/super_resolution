@@ -50,9 +50,10 @@ class UNet(torch.nn.Module):
 
 
 class VGG16Discriminator(torch.nn.Module):
-    def __init__(self, input_channels=3):
+    def __init__(self, input_channels=3, pretrained: bool = True):
         super().__init__()
-        self.vgg16 = vgg16(weights=VGG16_Weights.DEFAULT)  # loading pretrained
+        self.vgg16 = vgg16(
+            weights=VGG16_Weights.DEFAULT if pretrained else None)  # loading pretrained VGG16_Weights.DEFAULT
         self.vgg16.classifier = torch.nn.Sequential(
             torch.nn.Linear(512 * 7 * 7, 4096),
             torch.nn.ReLU(inplace=True),
