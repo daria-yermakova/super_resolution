@@ -10,19 +10,22 @@ import numpy as np
 from torch.utils.data import random_split
 from tqdm import tqdm
 import torch.nn.functional as F
-from config import PATCHES_TEMPLATE, CROPPED_TEMPLATE, PATCH_SIZE, STRIDE, SAVE_DIR_TEMPLATE
+from config import PATCHES_TEMPLATE, CROPPED_TEMPLATE, PATCH_SIZE, STRIDE, SAVE_DIR_TEMPLATE, BASELINE_TEMPLATE
 
 from loguru import logger
 
 
 class Data(torch.utils.data.Dataset):
     def __init__(
-            self, data_dir: str, n_images: int,
+            self, data_dir: str, n_images: int, load_baseline: bool = False
     ):
         self.ground_truth = []
         self.input_images = []
+        self.baseline_images = []
+
         ground_truth_dir = Path(data_dir) / PATCHES_TEMPLATE.format(PATCH_SIZE)
         cropped_dir = Path(data_dir) / CROPPED_TEMPLATE.format(PATCH_SIZE, STRIDE)
+        baseline_dir = Path(data_dir) / BASELINE_TEMPLATE.format(PATCH_SIZE, STRIDE)
 
         if not cropped_dir.exists() and not ground_truth_dir.exists():
             raise FileNotFoundError(
@@ -31,6 +34,7 @@ class Data(torch.utils.data.Dataset):
             )
         ground_truth_files = sorted(list(ground_truth_dir.glob("*.jpg")))  # dangerous wildcards
         cropped_files = sorted(list(cropped_dir.glob("*.jpg")))
+
 
         if not ground_truth_files or not cropped_files:
             raise FileNotFoundError("Empty dirs")
@@ -53,8 +57,19 @@ class Data(torch.utils.data.Dataset):
         self.input_images = torch.stack(self.input_images)
         self.ground_truth = torch.stack(self.ground_truth)
 
+        if load_baseline:
+            baseline_files = sorted(list(baseline_dir.glob("*.jpg")))
+            baseline_images = [
+                np.array(io.imread(baseline_files[index])).astype(np.float32) / 255
+                for index in range(n_images)
+            ]
+            self.baseline_images = baseline_images
+
     def __getitem__(self, index):
-        return self.input_images[index], self.ground_truth[index]
+        if self.baseline_images:
+            return self.input_images[index], self.ground_truth[index], self.baseline_images[index]
+        else:
+            return self.input_images[index], self.ground_truth[index]
 
     def __len__(self):
         return len(self.input_images)

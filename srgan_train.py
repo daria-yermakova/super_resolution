@@ -9,30 +9,15 @@ from torch.utils.data import Subset
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from tqdm import tqdm
 
 from data import Data, init_save_dir
-from evaluate import compare_batches
+from evaluate import compare_batches, compare_images
 from srgan import UNet, VGG16Discriminator
 
 
-def PSNRLoss(batch_1, batch_2):
-    """peak signal-to-noise ratio loss"""
-    mse = torch.nn.MSELoss()
-    mse_loss = mse(batch_1, batch_2)
-    psnr = 10 * torch.log10(1 / mse_loss)  # dB maybe use numpy
-    return psnr
-
-
-LOSSES = dict(
-    mse=torch.nn.MSELoss(),
-    bce=torch.nn.BCELoss(),
-    psnr=PSNRLoss,
-    # maybe add DiceLoss
-)
-
-
 def main():
-    full_set = 20  # running oom for 1000
+    full_set = 500  # running oom for 1000
     data_set = Data(data_dir="./data", n_images=full_set)
 
     if torch.cuda.is_available():
@@ -46,7 +31,6 @@ def main():
         logger.info('Using cpu')
 
     device = torch.device('cpu')
-
     validation_split = .2  # percent we want to use for validation
     shuffle_dataset = True
     random_seed = 42
@@ -70,9 +54,9 @@ def main():
         batch_size=batch_size * 2,
     )
 
-    lr = 0.001
-    nr_epochs = 25
-    n_filters = 8
+    lr = 0.0001
+    nr_epochs = 100
+    n_filters = 16
 
     batch_losses = []
     epoch_losses = []
@@ -80,7 +64,8 @@ def main():
 
     save_dir = init_save_dir()
     logger.info(
-        f"\nRunning training for {nr_epochs} epochs using"
+        f"\nRunning training with "
+        f"\n{nr_epochs=} \n{batch_size=}\n{lr=}\n{n_filters=}"
         f"\nSaving results to:"
         f"\n{save_dir}"
     )
@@ -96,7 +81,8 @@ def main():
 
     # loss_function = LOSSES[choose_loss]
 
-    content_loss = torch.nn.L1Loss()  # or torch.nn.MSELoss()
+    # content_loss = torch.nn.L1Loss()  # or torch.nn.MSELoss()
+    content_loss = torch.nn.MSELoss()
     adversarial_loss = torch.nn.BCELoss()
 
     discriminator_optimizer = torch.optim.Adam(discriminator.parameters(), lr=lr, betas=(0.5, 0.999))
@@ -110,8 +96,7 @@ def main():
     )
     # Training Begin
     for epoch in range(nr_epochs):
-        # epoch_loss = 0.0
-        for n_batch, (input_batch, target_batch) in enumerate(train_loader):
+        for n_batch, (input_batch, target_batch) in tqdm(enumerate(train_loader), desc=f"Epoch {epoch}/{nr_epochs}"):
             input_batch = input_batch.to(device)
             target_batch = target_batch.to(device)
 
@@ -137,7 +122,9 @@ def main():
             # Train the generator
             generator_optimizer.zero_grad()
             content_outputs = content_loss(generator(input_batch), target_batch)
-            adversarial_outputs = adversarial_loss(discriminator(generator(input_batch)), real_labels)
+            adversarial_outputs = adversarial_loss(
+                discriminator(generator(input_batch)), real_labels
+            )
             generator_loss = content_outputs + adversarial_outputs
             generator_loss.backward()
             generator_optimizer.step()
@@ -165,11 +152,13 @@ def main():
             val_losses.append(val_loss / len(validation_loader))
             losses_df.loc[epoch, "gen_val"] = val_loss
             losses_df.loc[epoch, ["ssim", "mse", "psnr"]] = compare_batches(
-                input_batch=torch.nn.functional.tanh(logits_batch),
+                input_batch=torch.nn.functional.tanh(
+                    torch.nn.functional.relu(logits_batch)
+                ),
                 target_batch=val_target_batch
             )
         print(
-            f"Epoch {epoch}/{nr_epochs}\t Losses: \t" + " | ".join(
+            f"\t Losses: \t" + " | ".join(
                 [f"{k}={v:06.3f}" for k, v in losses_df.loc[epoch].to_dict().items()])
         )
         if epoch % 5 == 4:
@@ -183,21 +172,23 @@ def main():
             ax[0].set_title(f'Prediction, epoch:{epoch}')
 
             sns.lineplot(
-                losses_df[["gen", "gen_val", "ssim", "mse", "psnr"]],
+                losses_df[["gen", "gen_val", "ssim", "mse"]],
                 ax=ax[1],
                 markers=True
             )
-            plt.savefig(save_dir / f"loss_epoch{epoch}.jpg", dpi=300)
+            # plt.show(block=False)
+            plt.savefig(save_dir / f"loss_epoch{epoch:03}.jpg", dpi=300)
     # End of training
 
     torch.save(generator.state_dict(), save_dir / "model.pt")
 
     # export epoch and validation loss as a csv
-    pd.DataFrame(
-        [epoch_losses, val_losses],
-        columns=range(nr_epochs), index=["train", "test"]
-    ).T.to_csv(save_dir / "losses.csv")
+    # pd.DataFrame(lo
+    #     [epoch_losses, val_losses],
+    #     columns=range(nr_epochs), index=["train", "test"]
+    # ).T.to_csv(save_dir / "losses.csv")
 
+    losses_df.to_csv(save_dir / "losses.csv")
     # plotting an inference example
     peek_index = 9
 
@@ -210,15 +201,22 @@ def main():
     input_display = input_image.cpu().numpy().squeeze().transpose(1, 2, 0)
     target_display = target_image.cpu().numpy().squeeze().transpose(1, 2, 0)
 
-    fig, ax = plt.subplots(2, 3, figsize=(15, 10))
-    ax[0, 0].imshow(reconstruction[100:200, 100:200, :])
-    ax[0, 1].imshow(input_display[100:200, 100:200, :])
-    ax[0, 2].imshow(target_display[100:200, 100:200, :])
+    eval_srgan = compare_images(target_image, reconstruction)
+    eval_baseline = compare_images(target_image, reconstruction)
 
+    fig, ax = plt.subplots(2, 3, figsize=(15, 10))
+    ax[0, 0].imshow(input_display[100:200, 100:200, :])
+    ax[0, 0].set_title("LowRes")
+    ax[0, 1].imshow(reconstruction[100:200, 100:200, :])
+    ax[0, 1].set_title("SRGAN reconstruction")
+    ax[0, 2].imshow(target_display[100:200, 100:200, :])
+    ax[1, 1].set_title("HighRes")
+
+    ax[1, 0].imshow(input_display[:, :, :])
     ax[1, 0].imshow(reconstruction[:, :, :])
-    ax[1, 1].imshow(input_display[:, :, :])
     ax[1, 2].imshow(target_display[:, :, :])
-    plt.savefig(save_dir / "reconstruction_sample.jpg", dpi=300)
+
+    plt.savefig(save_dir / "srgan_reconstruction_sample.jpg", dpi=300)
 
     # inferenece_dir = save_dir / "inference"
     # inferenece_dir.mkdir()

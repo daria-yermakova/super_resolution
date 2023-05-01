@@ -215,7 +215,7 @@ def main():
                        val_losses, lw=1)  # green
             ax[1].set_title('Batch loss, epoch loss (training) and test loss')
             ax[1].set_ylim(0, 1.1 * max(epoch_losses + val_losses))
-            plt.savefig(save_dir / f"loss_epoch{epoch}.jpg", dpi=300)
+            plt.savefig(save_dir / f"loss_epoch{epoch:03}.jpg", dpi=300)
 
     torch.save(model.state_dict(), save_dir / "model.pt")
 
