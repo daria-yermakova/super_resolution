@@ -18,7 +18,7 @@ from srgan import UNet, VGG16Discriminator
 
 def main():
     full_set = 500  # running oom for 1000
-    data_set = Data(data_dir="./data", n_images=full_set)
+    data_set = Data(data_dir="./data", n_images=full_set, load_baseline=True)
 
     if torch.cuda.is_available():
         device = torch.device("cuda:0")
@@ -96,7 +96,8 @@ def main():
     )
     # Training Begin
     for epoch in range(nr_epochs):
-        for n_batch, (input_batch, target_batch) in tqdm(enumerate(train_loader), desc=f"Epoch {epoch}/{nr_epochs}"):
+        # for n_batch, (input_batch, target_batch) in tqdm(enumerate(train_loader), desc=f"Epoch {epoch}/{nr_epochs}"):
+        for n_batch, (_, target_batch, input_batch) in tqdm(enumerate(train_loader), desc=f"Epoch {epoch}/{nr_epochs}"):
             input_batch = input_batch.to(device)
             target_batch = target_batch.to(device)
 
@@ -121,9 +122,10 @@ def main():
 
             # Train the generator
             generator_optimizer.zero_grad()
-            content_outputs = content_loss(generator(input_batch), target_batch)
+            generations = generator(input_batch)
+            content_outputs = content_loss(generations, target_batch)
             adversarial_outputs = adversarial_loss(
-                discriminator(generator(input_batch)), real_labels
+                discriminator(generations), real_labels
             )
             generator_loss = content_outputs + adversarial_outputs
             generator_loss.backward()
@@ -142,9 +144,8 @@ def main():
         with torch.no_grad():
             logits = generator(image.unsqueeze(0).to(device))
             val_loss = 0
-            for val_image_batch, val_target_batch in validation_loader:
-                val_image_batch = val_image_batch.to(device)
-                val_target_batch = val_target_batch.to(device)
+            for _, val_target_batch, val_image_batch in validation_loader:
+                val_image_batch, val_target_batch = val_image_batch.to(device), val_target_batch.to(device)
 
                 logits_batch = generator(val_image_batch)
                 loss = content_loss(logits_batch, val_target_batch)

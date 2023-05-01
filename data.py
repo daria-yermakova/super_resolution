@@ -34,7 +34,7 @@ class Data(torch.utils.data.Dataset):
             )
         ground_truth_files = sorted(list(ground_truth_dir.glob("*.jpg")))  # dangerous wildcards
         cropped_files = sorted(list(cropped_dir.glob("*.jpg")))
-
+        baseline_files = sorted(list(baseline_dir.glob("*.jpg")))
 
         if not ground_truth_files or not cropped_files:
             raise FileNotFoundError("Empty dirs")
@@ -54,19 +54,19 @@ class Data(torch.utils.data.Dataset):
             cropped_image = F.pad(cropped_image, (20, 20, 20, 20), mode='reflect')
             self.input_images.append(torch.tensor(cropped_image, dtype=torch.float32))
 
+            if load_baseline:
+                baseline_image = np.array(io.imread(baseline_files[index]))
+                baseline_image = baseline_image.transpose(2, 0, 1) / 255
+                baseline_image = torch.tensor(baseline_image, dtype=torch.float32)
+                baseline_image = F.pad(baseline_image, (20, 20, 20, 20), mode='reflect')
+                self.baseline_images.append(torch.tensor(baseline_image, dtype=torch.float32))
+
         self.input_images = torch.stack(self.input_images)
         self.ground_truth = torch.stack(self.ground_truth)
-
-        if load_baseline:
-            baseline_files = sorted(list(baseline_dir.glob("*.jpg")))
-            baseline_images = [
-                np.array(io.imread(baseline_files[index])).astype(np.float32) / 255
-                for index in range(n_images)
-            ]
-            self.baseline_images = baseline_images
+        self.baseline_images = torch.stack(self.baseline_images) if load_baseline else []
 
     def __getitem__(self, index):
-        if self.baseline_images:
+        if self.baseline_images.dim() > 1:
             return self.input_images[index], self.ground_truth[index], self.baseline_images[index]
         else:
             return self.input_images[index], self.ground_truth[index]
